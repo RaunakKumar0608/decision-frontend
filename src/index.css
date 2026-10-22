@@ -249,3 +249,32 @@ h2 {
     flex-direction: column;
   }
 }
+.group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.group-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.member-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.member-info h3,
+.member-info p {
+  margin: 0 0 4px;
+}
+
+.group-item button {
+  flex-shrink: 0;
+  width: auto;
+}

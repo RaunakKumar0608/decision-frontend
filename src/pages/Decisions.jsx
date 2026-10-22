@@ -1,174 +1,215 @@
-import { useEffect, useState } from "react";
-import api from "../api/client";
 
-export default function Groups() {
+import { useEffect, useState } from "react";
+import api from "../api/client.js";
+
+export default function Decisions() {
     const [groups, setGroups] = useState([]);
-    const [selectedGroup, setSelectedGroup] = useState(null);
-    const [members, setMembers] = useState([]);
-    const [groupName, setGroupName] = useState("");
-    const [loadingGroups, setLoadingGroups] = useState(true);
-    const [loadingMembers, setLoadingMembers] = useState(false);
+    const [decisions, setDecisions] = useState([]);
+
+    const [title, setTitle] = useState("");
+    const [decision, setDecision] = useState("");
+    const [reason, setReason] = useState("");
+    const [description, setDescription] = useState("");
+    const [groupId, setGroupId] = useState("");
+
+    const [loading, setLoading] = useState(true);
+    const [creating, setCreating] = useState(false);
     const [error, setError] = useState("");
     const [message, setMessage] = useState("");
 
-    async function loadGroups() {
-        try {
-            setLoadingGroups(true);
-            setError("");
+    async function loadData() {
+        setLoading(true);
+        setError("");
 
-            const response = await api.post("/users/myGroups");
-            setGroups(Array.isArray(response.data) ? response.data : []);
+        try {
+            const [groupResponse, decisionResponse] = await Promise.all([
+                api.post("/users/myGroups"),
+                api.get("/decisions/getDecisions"),
+            ]);
+
+            setGroups(
+                Array.isArray(groupResponse.data)
+                    ? groupResponse.data
+                    : groupResponse.data.groups || []
+            );
+
+            const data = decisionResponse.data;
+
+            setDecisions(
+                Array.isArray(data)
+                    ? data
+                    : data.decisions || []
+            );
         } catch (err) {
             setError(
-                err.response?.data?.message || "Could not load groups."
+                err.response?.data?.message ||
+                "Could not load your groups and decisions."
             );
         } finally {
-            setLoadingGroups(false);
+            setLoading(false);
         }
     }
 
     useEffect(() => {
-        loadGroups();
+        loadData();
     }, []);
 
-    async function createGroup(e) {
+    async function handleSubmit(e) {
         e.preventDefault();
-        if (!groupName.trim()) return;
-
-        try {
-            setError("");
-            setMessage("");
-
-            await api.post("/groups/createGroup", {
-                groupName: groupName.trim(),
-            });
-
-            setGroupName("");
-            setMessage("Group created successfully!");
-            await loadGroups();
-        } catch (err) {
-            setError(
-                err.response?.data?.message || "Could not create group."
-            );
-        }
-    }
-
-    async function openGroup(group) {
-        setSelectedGroup(group);
-        setMembers([]);
-        setLoadingMembers(true);
         setError("");
         setMessage("");
+        setCreating(true);
 
         try {
-            const response = await api.post("/groups/getMembers", {
-                groupId: group._id,
-            });
+            const payload = {
+                title: title.trim(),
+                decision: decision.trim(),
+                reason: reason.trim(),
+                description: description.trim(),
+            };
 
-            // Supports either an array or { members: [...] } response.
+            if (groupId) {
+                payload.groupId = groupId;
+            }
+
+            await api.post("/decisions/create", payload);
+
+            setTitle("");
+            setDecision("");
+            setReason("");
+            setDescription("");
+            setGroupId("");
+            setMessage("Decision created successfully!");
+
+            // Refresh the list after creation.
+            const response = await api.get("/decisions/getDecisions");
             const data = response.data;
-            const list = Array.isArray(data)
-                ? data
-                : Array.isArray(data.members)
-                    ? data.members
-                    : [];
 
-            setMembers(list);
+            setDecisions(
+                Array.isArray(data)
+                    ? data
+                    : data.decisions || []
+            );
         } catch (err) {
             setError(
                 err.response?.data?.message ||
-                "Could not load members. Check your getMembers controller."
+                "Could not create the decision."
             );
         } finally {
-            setLoadingMembers(false);
+            setCreating(false);
         }
     }
 
     return (
-        <main className="page">
-            <div className="page-header">
-                <div>
-                    <h1>Groups</h1>
-                    <p>Create groups and manage their members.</p>
-                </div>
-            </div>
+        <section>
+            <h1>Decisions</h1>
+            <p className="muted">
+                Record decisions and keep track of why they were made.
+            </p>
 
-            {error && <p role="alert">{error}</p>}
+            {error && <p className="error" role="alert">{error}</p>}
             {message && <p role="status">{message}</p>}
 
-            <section className="card">
-                <h2>Create a group</h2>
+            <form className="content-card" onSubmit={handleSubmit}>
+                <h2>Create a decision</h2>
 
-                <form onSubmit={createGroup} className="form-grid">
-                    <input
-                        type="text"
-                        value={groupName}
-                        onChange={(e) => setGroupName(e.target.value)}
-                        placeholder="Enter group name"
-                        required
-                    />
+                <label htmlFor="title">Title</label>
+                <input
+                    id="title"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="e.g. Choose project database"
+                    required
+                />
 
-                    <button type="submit">Create group</button>
-                </form>
-            </section>
+                <label htmlFor="decision">Decision</label>
+                <input
+                    id="decision"
+                    value={decision}
+                    onChange={(e) => setDecision(e.target.value)}
+                    placeholder="What did you decide?"
+                    required
+                />
 
-            <section className="card">
-                <h2>Your groups</h2>
+                <label htmlFor="reason">Reason</label>
+                <textarea
+                    id="reason"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    placeholder="Why was this decision made?"
+                    required
+                />
 
-                {loadingGroups ? (
-                    <p>Loading groups...</p>
-                ) : groups.length === 0 ? (
-                    <p>You haven't created or joined any groups yet.</p>
+                <label htmlFor="description">Description</label>
+                <textarea
+                    id="description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Add more context"
+                    required
+                />
+
+                <label htmlFor="group">Group (optional)</label>
+                <select
+                    id="group"
+                    value={groupId}
+                    onChange={(e) => setGroupId(e.target.value)}
+                >
+                    <option value="">Personal decision — no group</option>
+
+                    {groups.map((group) => (
+                        <option key={group._id} value={group._id}>
+                            {group.groupName}
+                        </option>
+                    ))}
+                </select>
+
+                <button type="submit" disabled={creating}>
+                    {creating ? "Saving..." : "Create decision"}
+                </button>
+            </form>
+
+            <div className="content-card">
+                <h2>Your decisions</h2>
+
+                {loading ? (
+                    <p>Loading decisions...</p>
+                ) : decisions.length === 0 ? (
+                    <p className="muted">
+                        No decisions yet. Create your first one above.
+                    </p>
                 ) : (
                     <div className="group-list">
-                        {groups.map((group) => (
-                            <button
-                                key={group._id}
-                                type="button"
+                        {decisions.map((item) => (
+                            <article
                                 className="group-item"
-                                onClick={() => openGroup(group)}
+                                key={item._id}
                             >
-                <span>
-                  <strong>{group.groupName}</strong>
-                  <small>
-                    {group.groupMembers?.length ?? 0} members
-                  </small>
-                </span>
+                                <h3>{item.title}</h3>
 
-                                <span aria-hidden="true">→</span>
-                            </button>
+                                <p>
+                                    <strong>Decision:</strong>{" "}
+                                    {item.decision}
+                                </p>
+
+                                <p>
+                                    <strong>Reason:</strong>{" "}
+                                    {item.reason}
+                                </p>
+
+                                <p>{item.description}</p>
+
+                                {item.status && (
+                                    <p>
+                                        <strong>Status:</strong>{" "}
+                                        {item.status}
+                                    </p>
+                                )}
+                            </article>
                         ))}
                     </div>
                 )}
-            </section>
-
-            {selectedGroup && (
-                <section className="card">
-                    <h2>{selectedGroup.groupName} — Members</h2>
-
-                    {loadingMembers ? (
-                        <p>Loading members...</p>
-                    ) : members.length === 0 ? (
-                        <p>No members returned for this group.</p>
-                    ) : (
-                        <div className="group-list">
-                            {members.map((member, index) => (
-                                <div
-                                    className="group-item"
-                                    key={member._id || member.id || index}
-                                >
-                  <span>
-                    <strong>
-                      {member.name || member.email || "Group member"}
-                    </strong>
-                      {member.email && <small>{member.email}</small>}
-                  </span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </section>
-            )}
-        </main>
+            </div>
+        </section>
     );
 }
