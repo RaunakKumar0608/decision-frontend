@@ -12,8 +12,11 @@ export default function Decisions() {
     const [description, setDescription] = useState("");
     const [groupId, setGroupId] = useState("");
 
+    const [editingId, setEditingId] = useState(null);
     const [loading, setLoading] = useState(true);
     const [creating, setCreating] = useState(false);
+    const [deletingId, setDeletingId] = useState(null);
+
     const [error, setError] = useState("");
     const [message, setMessage] = useState("");
 
@@ -54,6 +57,32 @@ export default function Decisions() {
         loadData();
     }, []);
 
+    function resetForm() {
+        setTitle("");
+        setDecision("");
+        setReason("");
+        setDescription("");
+        setGroupId("");
+        setEditingId(null);
+    }
+
+    function startEditing(item) {
+        setEditingId(item._id);
+        setTitle(item.title || "");
+        setDecision(item.decision || "");
+        setReason(item.reason || "");
+        setDescription(item.description || "");
+        setGroupId("");
+
+        setError("");
+        setMessage("");
+
+        window.scrollTo({
+            top: 0,
+            behavior: "smooth",
+        });
+    }
+
     async function handleSubmit(e) {
         e.preventDefault();
         setError("");
@@ -68,35 +97,62 @@ export default function Decisions() {
                 description: description.trim(),
             };
 
-            if (groupId) {
-                payload.groupId = groupId;
+            if (editingId) {
+                await api.patch(
+                    `/decisions/editDecisions/${editingId}`,
+                    payload
+                );
+
+                setMessage("Decision updated successfully!");
+            } else {
+                if (groupId) {
+                    payload.groupId = groupId;
+                }
+
+                await api.post("/decisions/create", payload);
+
+                setMessage("Decision created successfully!");
             }
 
-            await api.post("/decisions/create", payload);
-
-            setTitle("");
-            setDecision("");
-            setReason("");
-            setDescription("");
-            setGroupId("");
-            setMessage("Decision created successfully!");
-
-            // Refresh the list after creation.
-            const response = await api.get("/decisions/getDecisions");
-            const data = response.data;
-
-            setDecisions(
-                Array.isArray(data)
-                    ? data
-                    : data.decisions || []
-            );
+            resetForm();
+            await loadData();
         } catch (err) {
             setError(
                 err.response?.data?.message ||
-                "Could not create the decision."
+                `Could not ${editingId ? "update" : "create"} the decision.`
             );
         } finally {
             setCreating(false);
+        }
+    }
+
+    async function handleDelete(id) {
+        const confirmed = window.confirm(
+            "Are you sure you want to delete this decision? This cannot be undone."
+        );
+
+        if (!confirmed) return;
+
+        setError("");
+        setMessage("");
+        setDeletingId(id);
+
+        try {
+            await api.delete(`/decisions/deleteDecisions/${id}`);
+
+            if (editingId === id) {
+                resetForm();
+            }
+
+            setMessage("Decision deleted successfully!");
+            await loadData();
+        } catch (err) {
+            setError(
+                err.response?.data?.message ||
+                "Could not delete the decision."
+            );
+        } finally {
+            setDeletingId(null);
         }
     }
 
@@ -107,11 +163,18 @@ export default function Decisions() {
                 Record decisions and keep track of why they were made.
             </p>
 
-            {error && <p className="error" role="alert">{error}</p>}
-            {message && <p role="status">{message}</p>}
+            {error && (
+                <p className="error" role="alert">{error}</p>
+            )}
+
+            {message && (
+                <p role="status">{message}</p>
+            )}
 
             <form className="content-card" onSubmit={handleSubmit}>
-                <h2>Create a decision</h2>
+                <h2>
+                    {editingId ? "Edit decision" : "Create a decision"}
+                </h2>
 
                 <label htmlFor="title">Title</label>
                 <input
@@ -149,24 +212,48 @@ export default function Decisions() {
                     required
                 />
 
-                <label htmlFor="group">Group (optional)</label>
-                <select
-                    id="group"
-                    value={groupId}
-                    onChange={(e) => setGroupId(e.target.value)}
-                >
-                    <option value="">Personal decision — no group</option>
+                {!editingId && (
+                    <>
+                        <label htmlFor="group">Group (optional)</label>
+                        <select
+                            id="group"
+                            value={groupId}
+                            onChange={(e) => setGroupId(e.target.value)}
+                        >
+                            <option value="">
+                                Personal decision — no group
+                            </option>
 
-                    {groups.map((group) => (
-                        <option key={group._id} value={group._id}>
-                            {group.groupName}
-                        </option>
-                    ))}
-                </select>
+                            {groups.map((group) => (
+                                <option key={group._id} value={group._id}>
+                                    {group.groupName}
+                                </option>
+                            ))}
+                        </select>
+                    </>
+                )}
 
                 <button type="submit" disabled={creating}>
-                    {creating ? "Saving..." : "Create decision"}
+                    {creating
+                        ? "Saving..."
+                        : editingId
+                            ? "Save changes"
+                            : "Create decision"}
                 </button>
+
+                {editingId && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            resetForm();
+                            setError("");
+                            setMessage("");
+                        }}
+                        disabled={creating}
+                    >
+                        Cancel editing
+                    </button>
+                )}
             </form>
 
             <div className="content-card">
@@ -205,6 +292,24 @@ export default function Decisions() {
                                         {item.status}
                                     </p>
                                 )}
+
+                                <button
+                                    type="button"
+                                    onClick={() => startEditing(item)}
+                                    disabled={creating || deletingId !== null}
+                                >
+                                    Edit
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => handleDelete(item._id)}
+                                    disabled={creating || deletingId !== null}
+                                >
+                                    {deletingId === item._id
+                                        ? "Deleting..."
+                                        : "Delete"}
+                                </button>
                             </article>
                         ))}
                     </div>
