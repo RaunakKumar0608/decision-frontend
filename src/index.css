@@ -3430,3 +3430,31 @@ p {
     padding: 22px 18px;
   }
 }
+
+.register-back-button {
+  margin-top: 18px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.register-back-button:hover {
+  background: var(--surface);
+  border-color: var(--primary);
+}
+
+.register-back-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
