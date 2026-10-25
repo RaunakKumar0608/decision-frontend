@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 
 export default function Register() {
     const navigate = useNavigate();
+
     const [form, setForm] = useState({
         name: "",
         email: "",
@@ -31,7 +32,8 @@ export default function Register() {
     const [error, setError] = useState("");
     const [message, setMessage] = useState("");
     const [loading, setLoading] = useState(false);
-
+    const [resending, setResending] = useState(false);
+    const [resendCooldown, setResendCooldown] = useState(0);
     const [verified, setVerified] = useState(false);
 
     useEffect(() => {
@@ -40,7 +42,8 @@ export default function Register() {
         const timer = setTimeout(() => {
             navigate("/login", {
                 state: {
-                    message: "Email verified successfully. You can now log in.",
+                    message:
+                        "Email verified successfully. You can now log in.",
                     email: form.email.trim().toLowerCase(),
                 },
             });
@@ -48,6 +51,16 @@ export default function Register() {
 
         return () => clearTimeout(timer);
     }, [verified, navigate, form.email]);
+
+    useEffect(() => {
+        if (resendCooldown <= 0) return;
+
+        const timer = setTimeout(() => {
+            setResendCooldown((previous) => Math.max(0, previous - 1));
+        }, 1000);
+
+        return () => clearTimeout(timer);
+    }, [resendCooldown]);
 
     function updateField(e) {
         setForm({ ...form, [e.target.name]: e.target.value });
@@ -67,6 +80,8 @@ export default function Register() {
                 response.data?.message ||
                 "Verification code sent. Check your email."
             );
+            setOtp("");
+            setResendCooldown(60);
         } catch (err) {
             setError(
                 err.response?.data?.message || "Registration failed"
@@ -83,14 +98,15 @@ export default function Register() {
         setLoading(true);
 
         try {
-            const response = await api.post("/users/verify-email", {
+            await api.post("/users/verify-email", {
                 email: form.email.trim().toLowerCase(),
                 otp,
             });
 
-            setMessage("Email verified successfully! Redirecting you to login...");
+            setMessage(
+                "Email verified successfully! Redirecting you to login..."
+            );
             setVerified(true);
-
         } catch (err) {
             setError(
                 err.response?.data?.message ||
@@ -98,6 +114,45 @@ export default function Register() {
             );
         } finally {
             setLoading(false);
+        }
+    }
+
+    async function handleResendOtp() {
+        setError("");
+        setMessage("");
+        setResending(true);
+
+        try {
+            const response = await api.post("/users/resend-otp", {
+                email: form.email.trim().toLowerCase(),
+            });
+
+            setMessage(
+                response.data?.message ||
+                "A new verification code has been sent."
+            );
+            setOtp("");
+            setResendCooldown(60);
+        } catch (err) {
+            const responseMessage = err.response?.data?.message;
+
+            setError(
+                responseMessage || "Unable to resend the verification code."
+            );
+
+            // If the backend returns the remaining cooldown,
+            // use that value to keep the button disabled.
+            if (err.response?.status === 429) {
+                const seconds = responseMessage?.match(/(\d+)\s*seconds?/i);
+
+                if (seconds) {
+                    setResendCooldown(Number(seconds[1]));
+                } else {
+                    setResendCooldown(60);
+                }
+            }
+        } finally {
+            setResending(false);
         }
     }
 
@@ -137,7 +192,9 @@ export default function Register() {
                                 </span>
                                 <div>
                                     <strong>Capture your reasoning</strong>
-                                    <span>Keep the why behind every decision.</span>
+                                    <span>
+                                        Keep the why behind every decision.
+                                    </span>
                                 </div>
                             </div>
 
@@ -147,7 +204,9 @@ export default function Register() {
                                 </span>
                                 <div>
                                     <strong>Bring your team together</strong>
-                                    <span>Organize group decisions in one place.</span>
+                                    <span>
+                                        Organize group decisions in one place.
+                                    </span>
                                 </div>
                             </div>
 
@@ -156,8 +215,13 @@ export default function Register() {
                                     <ShieldCheck size={19} />
                                 </span>
                                 <div>
-                                    <strong>Build your personal workspace</strong>
-                                    <span>Keep your decisions structured and accessible.</span>
+                                    <strong>
+                                        Build your personal workspace
+                                    </strong>
+                                    <span>
+                                        Keep your decisions structured and
+                                        accessible.
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -214,7 +278,10 @@ export default function Register() {
                         )}
 
                         {message && (
-                            <div className="register-security-note" role="status">
+                            <div
+                                className="register-security-note"
+                                role="status"
+                            >
                                 <CheckCircle2 size={16} />
                                 <span>{message}</span>
                             </div>
@@ -345,7 +412,12 @@ export default function Register() {
                                 <button
                                     className="register-submit"
                                     type="submit"
-                                    disabled={loading || verified || otp.length !== 6}
+                                    disabled={
+                                        loading ||
+                                        resending ||
+                                        verified ||
+                                        otp.length !== 6
+                                    }
                                 >
                                     {loading ? (
                                         <>
@@ -371,13 +443,40 @@ export default function Register() {
                                         setOtp("");
                                         setError("");
                                         setMessage("");
+                                        setResendCooldown(0);
                                     }}
-
-                                    disabled={loading || verified}
+                                    disabled={
+                                        loading || resending || verified
+                                    }
                                 >
-
                                     <ArrowLeft size={17} />
                                     Back to registration
+                                </button>
+
+                                <button
+                                    className="register-resend-button"
+                                    type="button"
+                                    onClick={handleResendOtp}
+                                    disabled={
+                                        loading ||
+                                        resending ||
+                                        verified ||
+                                        resendCooldown > 0
+                                    }
+                                >
+                                    {resending ? (
+                                        <>
+                                            <LoaderCircle
+                                                size={17}
+                                                className="register-spinner"
+                                            />
+                                            Sending new code...
+                                        </>
+                                    ) : resendCooldown > 0 ? (
+                                        `Resend OTP in ${resendCooldown}s`
+                                    ) : (
+                                        "Didn't receive the code? Resend OTP"
+                                    )}
                                 </button>
                             </>
                         )}
@@ -400,7 +499,6 @@ export default function Register() {
                     <p className="register-bottom-note">
                         DecisionFlow · Your decisions, all in one place
                     </p>
-
                 </section>
             </div>
         </div>

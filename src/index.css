@@ -3458,3 +3458,31 @@ p {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+.register-resend-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, opacity 0.2s ease;
+}
+
+.register-resend-button:hover:not(:disabled) {
+  background: var(--surface);
+}
+
+.register-resend-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
